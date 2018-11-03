@@ -54,6 +54,7 @@ for i in range(1,num_of_instances):
         if 'Training' in usage:
             y_train.append(emotion)
             x_train.append(pixels)
+#convert all PublicTesting and PrivateTesting in dataset to Testing
         elif 'Testing' in usage:
             y_test.append(emotion)
             x_test.append(pixels)

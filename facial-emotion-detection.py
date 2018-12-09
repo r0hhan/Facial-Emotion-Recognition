@@ -12,6 +12,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import cv2
+
+from sklearn.metrics import confusion_matrix
+import itertools
+
 #------------------------------
 #cpu - gpu configuration
 config = tf.ConfigProto( device_count = {'GPU': 0 , 'CPU': 56} ) #max: 1 gpu, 56 cpu
@@ -26,7 +30,7 @@ epochs = 25
 #read kaggle facial expression recognition challenge dataset (fer2013.csv)
 #https://www.kaggle.com/c/challenges-in-representation-learning-facial-expression-recognition-challenge
 
-with open("fer2013/fer2013-temp.csv") as f:
+with open("fer2013/fer2013-tt.csv") as f:
     content = f.readlines()
 
 lines = np.array(content)
@@ -111,9 +115,7 @@ gen = ImageDataGenerator()
 train_generator = gen.flow(x_train,
                            y_train,
                            batch_size = batch_size)
-test_generator = gen.flow(x_test,
-                          y_test,
-                          batch_size = batch_size)
+
 
 #------------------------------
 
@@ -122,20 +124,42 @@ model.compile(loss='categorical_crossentropy',
               metrics=['accuracy']
               )
 
-model.fit_generator(train_generator, steps_per_epoch = batch_size, epochs = epochs)
+history = model.fit_generator(train_generator, 
+                              validation_data = (x_test, y_test),
+                              steps_per_epoch = batch_size, 
+                              epochs = epochs)
 
 #------------------------------
-
+#save and load model
 model.save("emotion-92-57-model.h5")
-
-model = load_model("emotion-92-57-model.h5")
+model = load_model("emotion-92-57-model-backup.h5")
 
 #------------------------------
+#plot loss, acc w.r.t epochs
+print(history.history.keys())
+#  "Accuracy"
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper left')
+plt.show()
+# "Loss"
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper left')
+plt.show()
 
+#------------------------------
 #overall evaluation
 score = model.evaluate(x_test, y_test)
 print('Test loss:', score[0])
 print('Test accuracy:', 100*score[1])
+y_pred = model.predict(x_test, verbose = 1)
 
 #------------------------------
 #function for drawing bar chart for emotion preditions
@@ -150,7 +174,34 @@ def emotion_analysis(emotions):
     
     plt.show()
 #------------------------------
+#create confusion matrix
+y_true = y_test.argmax(axis=1)
+y_pred = y_pred.argmax(axis=1)
+cm = confusion_matrix(y_true, y_pred)
+cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+title='Confusion matrix'
+print(cm)
 
+plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+plt.title(title)
+plt.colorbar()
+tick_marks = np.arange(len(labels))
+plt.xticks(tick_marks, labels, rotation=45)
+plt.yticks(tick_marks, labels)
+fmt = '0.2f'
+thresh = cm.max() / 2.
+for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+    plt.text(j, i, format(cm[i, j], fmt),
+            horizontalalignment="center",
+            color="white" if cm[i, j] > thresh else "black")
+
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+plt.tight_layout()
+plt.show()
+
+#------------------------------
 monitor_testset_results = False
 
 if monitor_testset_results == True:
@@ -183,7 +234,7 @@ if monitor_testset_results == True:
 
 #capture frontal face of the image
 face_cascade = cv2.CascadeClassifier('haarcascades/haarcascade_frontalface_default.xml')
-img = cv2.imread('test-images/girl-surprised.jpg')
+img = cv2.imread('lan-test/angry.jpg')
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #transform image to gray scale
 faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 for (x,y,w,h) in faces:
